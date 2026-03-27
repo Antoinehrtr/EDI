@@ -1,9 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { ethers } from 'ethers'
+import sharp from 'sharp'
 import { generateBadgeSvg } from '@/lib/generateSvg'
-import { uploadSvg, uploadJson } from '@/lib/pinata'
+import { uploadPng, uploadJson } from '@/lib/pinata'
 import { getMintContract, CONTRACT_ABI } from '@/lib/contract'
 import type { BadgeFormData, MintResult } from '@/lib/types'
+
+/**
+ * Decode a base58-encoded IPFS CIDv0 (e.g. "QmXXX...") into a bytes32 hex string.
+ * CIDv0 = base58( 0x1220 + sha256_hash ), so we strip the 2-byte multihash prefix
+ * and return the raw 32-byte SHA-256 digest that the optimised contract stores.
+ */
+function cidToBytes32(cid: string): string {
+  const ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
+  let num = 0n
+  for (const char of cid) {
+    const idx = ALPHABET.indexOf(char)
+    if (idx < 0) throw new Error(`Invalid base58 character: ${char}`)
+    num = num * 58n + BigInt(idx)
+  }
+  // 34 hex bytes (68 chars): first 2 bytes are 0x1220 (multihash prefix), rest is the hash
+  const hex = num.toString(16).padStart(68, '0')
+  return '0x' + hex.slice(4) // drop the 0x1220 prefix → 32 bytes
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -17,12 +36,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'First and last name are required' }, { status: 400 })
     }
 
-    // 1. Generate badge SVG
+    // 1. Generate badge SVG → convert to PNG (better NFT platform support than SVG)
     const svg = generateBadgeSvg(data)
     const slug = `${data.lastName}-${data.firstName}`.toLowerCase().replace(/\s+/g, '-')
+    const png = await sharp(Buffer.from(svg)).png().toBuffer()
 
-    // 2. Upload SVG image to IPFS
-    const imageCid = await uploadSvg(svg, `${slug}-badge.svg`)
+    // 2. Upload PNG image to IPFS
+    const imageCid = await uploadPng(png, `${slug}-badge.png`)
     const imageUri = `ipfs://${imageCid}`
 
     // 3. Build ERC-721 metadata
@@ -42,9 +62,13 @@ export async function POST(req: NextRequest) {
     const metaCid = await uploadJson(metadata, `${slug}-metadata.json`)
     const metadataUri = `ipfs://${metaCid}`
 
-    // 5. Mint NFT on-chain
+    // 5. Decode CID → bytes32 for the optimised contract, then mint
+    const ipfsHash = cidToBytes32(metaCid)
     const contract = getMintContract()
-    const tx = await contract.mint(data.recipientWallet, metadataUri)
+    const tx = await contract.mint(data.recipientWallet, ipfsHash, {
+      maxFeePerGas: ethers.parseUnits('35', 'gwei'),
+      maxPriorityFeePerGas: ethers.parseUnits('25', 'gwei'),
+    })
     const receipt = await tx.wait(1)
 
     // 6. Parse token ID from BadgeMinted event

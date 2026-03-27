@@ -2,8 +2,8 @@ import { ethers } from 'ethers'
 
 // Minimal ABI — only what the app needs
 const ABI = [
-  'function mint(address to, string calldata tokenURI_) external returns (uint256)',
-  'event BadgeMinted(address indexed recipient, uint256 indexed tokenId, string tokenURI)',
+  'function mint(address to, bytes32 ipfsHash) external returns (uint256)',
+  'event BadgeMinted(address indexed recipient, uint256 indexed tokenId)',
 ]
 
 export function getMintContract() {
