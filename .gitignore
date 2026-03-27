@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+contracts/node_modules/
+
+# Next.js
+.next/
+out/
+
+# Secrets — never commit these
+.env.local
+.env*.local
+
+# Hardhat artifacts
+contracts/artifacts/
+contracts/cache/
+contracts/typechain-types/
+
+# Misc
+.DS_Store
+*.log
