@@ -13,15 +13,21 @@ import type { BadgeFormData, MintResult } from '@/lib/types'
  */
 function cidToBytes32(cid: string): string {
   const ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
-  let num = 0n
+  // Decode base58 into a 34-byte array using carry arithmetic (no BigInt needed)
+  const bytes = new Uint8Array(34)
   for (const char of cid) {
     const idx = ALPHABET.indexOf(char)
     if (idx < 0) throw new Error(`Invalid base58 character: ${char}`)
-    num = num * 58n + BigInt(idx)
+    let carry = idx
+    for (let i = 33; i >= 0; i--) {
+      carry += 58 * bytes[i]
+      bytes[i] = carry & 0xff
+      carry >>= 8
+    }
   }
-  // 34 hex bytes (68 chars): first 2 bytes are 0x1220 (multihash prefix), rest is the hash
-  const hex = num.toString(16).padStart(68, '0')
-  return '0x' + hex.slice(4) // drop the 0x1220 prefix → 32 bytes
+  // First 2 bytes are the multihash prefix (0x1220) — skip them, keep the 32-byte hash
+  const hash = bytes.slice(2)
+  return '0x' + Array.from(hash).map(b => b.toString(16).padStart(2, '0')).join('')
 }
 
 export async function POST(req: NextRequest) {
