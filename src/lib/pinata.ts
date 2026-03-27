@@ -7,7 +7,7 @@ function authHeader() {
 }
 
 export async function uploadPng(pngBuffer: Buffer, filename: string): Promise<string> {
-  const blob = new Blob([pngBuffer], { type: 'image/png' })
+  const blob = new Blob([new Uint8Array(pngBuffer)], { type: 'image/png' })
   const form = new FormData()
   form.append('file', blob, filename)
   form.append('pinataMetadata', JSON.stringify({ name: filename }))
