@@ -10,11 +10,11 @@ const ABI = [
 const NETWORK_CONFIG = {
   mainnet: {
     rpcEnv: 'POLYGON_MAINNET_RPC_URL',
-    contractEnv: 'CONTRACT_ADDRESS_MAINNET',
+    contractEnv: 'POLYGON_MAINNET_CONTRACT',
   },
   amoy: {
     rpcEnv: 'POLYGON_AMOY_RPC_URL',
-    contractEnv: 'CONTRACT_ADDRESS',
+    contractEnv: 'POLYGON_AMOY_CONTRACT',
   },
 } as const
 

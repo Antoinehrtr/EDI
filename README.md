@@ -308,17 +308,21 @@ Create a `.env.local` file at the project root (never commit this file):
 # Fund it with Amoy POL from https://faucet.polygon.technology
 MINTER_PRIVATE_KEY=0x...
 
-# The address of the deployed EDIBadge contract on Polygon Amoy.
-# You get this after running the deploy script (see below).
-CONTRACT_ADDRESS=0x...
+# Polygon Mainnet (optional — only needed if you plan to mint on mainnet)
+POLYGON_MAINNET_RPC_URL=https://polygon-bor-rpc.publicnode.com
+POLYGON_MAINNET_CONTRACT=0x...
 
-# Public Polygon Amoy RPC endpoint. The default below works; you can also use
-# a dedicated key from Alchemy or Infura for higher reliability.
+# Polygon Amoy Testnet (default network for this project)
+# You get the contract address after running the deploy script (see below).
 POLYGON_AMOY_RPC_URL=https://rpc-amoy.polygon.technology
+POLYGON_AMOY_CONTRACT=0x...
 
 # JWT token from Pinata. Create a key at https://app.pinata.cloud/keys
 # with "pinFileToIPFS" and "pinJSONToIPFS" permissions.
 PINATA_JWT=eyJ...
+
+# Optional: expose this only when you need Hardhat contract verification
+POLYGONSCAN_API_KEY=...
 ```
 
 ---
@@ -363,7 +367,7 @@ npm install
 npx hardhat run scripts/deploy.ts --network amoy
 ```
 
-The script prints the deployed contract address. Copy it into `.env.local` as `CONTRACT_ADDRESS`.
+The script prints the deployed contract address. Copy it into `.env.local` as `POLYGON_AMOY_CONTRACT` (or `POLYGON_MAINNET_CONTRACT` if you deployed to Polygon mainnet).
 
 You only need to do this once. After deployment, the minter wallet is the contract owner and the only address allowed to call `mint()`.
 
@@ -378,9 +382,11 @@ You only need to do this once. After deployment, the minter wallet is the contra
 
 # 3. In the Vercel project settings → Environment Variables, add:
 #    MINTER_PRIVATE_KEY
-#    CONTRACT_ADDRESS
+#    POLYGON_AMOY_CONTRACT
 #    POLYGON_AMOY_RPC_URL
 #    PINATA_JWT
+#    (optional) POLYGON_MAINNET_CONTRACT
+#    (optional) POLYGON_MAINNET_RPC_URL
 
 # 4. Deploy — Vercel auto-detects Next.js and builds it correctly
 ```

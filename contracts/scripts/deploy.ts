@@ -12,7 +12,9 @@ async function main() {
   const address = await contract.getAddress()
   console.log('EDIBadge deployed to:', address)
   console.log('Add this to your .env.local:')
-  console.log(`CONTRACT_ADDRESS=${address}`)
+  const networkEnvVar =
+    hre.network.name === 'polygon' ? 'POLYGON_MAINNET_CONTRACT' : 'POLYGON_AMOY_CONTRACT'
+  console.log(`${networkEnvVar}=${address}`)
 }
 
 main().catch((err) => {
