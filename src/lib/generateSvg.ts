@@ -25,92 +25,71 @@ export function generateBadgeSvg(data: BadgeFormData): string {
   const start = esc(formatDate(data.startDate))
   const end = esc(formatDate(data.completionDate))
   const hasImage = Boolean(data.imageUrl)
-  const networkLabel = data.network === 'mainnet' ? 'Polygon Mainnet' : 'Polygon Amoy Testnet'
 
   return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
     width="600" height="400" viewBox="0 0 600 400">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#0f172a"/>
-      <stop offset="100%" stop-color="#1e1b4b"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#06080d"/>
+      <stop offset="100%" stop-color="#121821"/>
     </linearGradient>
-    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="#f59e0b"/>
-      <stop offset="100%" stop-color="#fbbf24"/>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#d8dbe2"/>
+      <stop offset="100%" stop-color="#9aa3b2"/>
     </linearGradient>
+    <radialGradient id="softLight" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
     <clipPath id="avatarClip">
-      <circle cx="76" cy="196" r="48"/>
+      <circle cx="86" cy="204" r="48"/>
     </clipPath>
-    <filter id="glow">
-      <feGaussianBlur stdDeviation="3" result="blur"/>
-      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
   </defs>
 
-  <!-- Background -->
-  <rect width="600" height="400" fill="url(#bg)" rx="18"/>
+  <rect width="600" height="400" fill="url(#bg)" rx="24"/>
+  <circle cx="468" cy="120" r="160" fill="url(#softLight)"/>
+  <rect x="14" y="14" width="572" height="372" rx="22" fill="rgba(255,255,255,0.018)" stroke="rgba(255,255,255,0.08)"/>
+  <rect x="24" y="24" width="552" height="52" rx="18" fill="rgba(255,255,255,0.025)" stroke="rgba(255,255,255,0.05)"/>
+  <rect x="24" y="88" width="552" height="270" rx="22" fill="rgba(4,7,13,0.3)" stroke="rgba(255,255,255,0.05)"/>
 
-  <!-- Outer gold border -->
-  <rect x="3" y="3" width="594" height="394" fill="none" stroke="url(#gold)" stroke-width="1.5" rx="16" opacity="0.6"/>
+  <text x="40" y="47" font-family="'Avenir Next', 'Segoe UI', sans-serif" font-size="10" font-weight="600"
+        letter-spacing="4" fill="rgba(224,229,238,0.48)">ELCA DIGITAL INNOVATION</text>
+  <text x="560" y="47" font-family="'Avenir Next Condensed', 'Arial Narrow', sans-serif" font-size="20" font-weight="700"
+        text-anchor="end" fill="url(#accent)">Badge</text>
 
-  <!-- Header band -->
-  <rect x="0" y="0" width="600" height="64" fill="#f59e0b" fill-opacity="0.08" rx="18"/>
-  <rect x="0" y="56" width="600" height="8" fill="#f59e0b" fill-opacity="0.12"/>
-
-  <!-- Header stars & title -->
-  <text x="300" y="40" font-family="Georgia, serif" font-size="18" font-weight="bold"
-        fill="url(#gold)" text-anchor="middle" filter="url(#glow)">✦  EDI BADGE  ✦</text>
-  <text x="300" y="56" font-family="Arial, sans-serif" font-size="10" letter-spacing="3"
-        fill="#fbbf24" text-anchor="middle" opacity="0.7">ELCA DIGITAL INNOVATION</text>
-
-  <!-- Avatar circle background -->
-  <circle cx="76" cy="196" r="52" fill="#f59e0b" fill-opacity="0.15"/>
-  <circle cx="76" cy="196" r="50" fill="none" stroke="url(#gold)" stroke-width="1.5"/>
+  <circle cx="86" cy="204" r="56" fill="rgba(255,255,255,0.025)"/>
+  <circle cx="86" cy="204" r="50" fill="rgba(8,11,19,0.68)" stroke="rgba(255,255,255,0.09)"/>
 
   ${hasImage
-    ? `<image href="${esc(data.imageUrl)}" x="28" y="148" width="96" height="96"
+    ? `<image href="${esc(data.imageUrl)}" x="38" y="156" width="96" height="96"
         clip-path="url(#avatarClip)" preserveAspectRatio="xMidYMid slice"/>`
-    : `<!-- Placeholder initials -->
-  <text x="76" y="203" font-family="Georgia, serif" font-size="28" font-weight="bold"
-        fill="url(#gold)" text-anchor="middle" dominant-baseline="middle">
+    : `<text x="86" y="211" font-family="'Avenir Next Condensed', 'Arial Narrow', sans-serif" font-size="28" font-weight="700"
+        fill="url(#accent)" text-anchor="middle" dominant-baseline="middle">
     ${esc((data.firstName[0] ?? '?').toUpperCase())}${esc((data.lastName[0] ?? '').toUpperCase())}
   </text>`}
 
-  <!-- Name -->
-  <text x="148" y="168" font-family="Georgia, serif" font-size="22" font-weight="bold"
-        fill="white">${name}</text>
+  <text x="156" y="174" font-family="'Avenir Next Condensed', 'Arial Narrow', sans-serif" font-size="28" font-weight="700"
+        fill="#f4f6fb">${name}</text>
+  <text x="156" y="200" font-family="'Avenir Next', 'Segoe UI', sans-serif" font-size="13" font-weight="500"
+        fill="#aab2c1">${project}</text>
 
-  <!-- Project -->
-  <text x="148" y="194" font-family="Arial, sans-serif" font-size="13" fill="#fbbf24">
-    ${project}
+  <line x1="156" y1="220" x2="540" y2="220" stroke="rgba(255,255,255,0.06)"/>
+
+  <text x="156" y="245" font-family="'Avenir Next', 'Segoe UI', sans-serif" font-size="10" font-weight="600"
+        letter-spacing="2" fill="rgba(205,211,223,0.44)">PERIOD</text>
+  <text x="156" y="266" font-family="'Avenir Next', 'Segoe UI', sans-serif" font-size="12" fill="#c7cfdd">
+    ${start}  -  ${end}
   </text>
 
-  <!-- Divider -->
-  <line x1="148" y1="206" x2="560" y2="206" stroke="#f59e0b" stroke-width="0.5" opacity="0.4"/>
-
-  <!-- Dates -->
-  <text x="148" y="226" font-family="Arial, sans-serif" font-size="11" fill="#94a3b8">
-    <tspan fill="#fbbf24" opacity="0.8">From</tspan>  ${start}
-    <tspan dx="12" fill="#fbbf24" opacity="0.8">To</tspan>  ${end}
-  </text>
-
-  <!-- Details label -->
-  <text x="148" y="258" font-family="Arial, sans-serif" font-size="10" letter-spacing="1.5"
-        fill="#fbbf24" opacity="0.6">DETAILS</text>
-
-  <!-- Details text (two lines max) -->
-  <text x="148" y="275" font-family="Arial, sans-serif" font-size="12" fill="#cbd5e1">
+  <text x="156" y="302" font-family="'Avenir Next', 'Segoe UI', sans-serif" font-size="10" font-weight="600"
+        letter-spacing="2" fill="rgba(205,211,223,0.44)">DETAILS</text>
+  <text x="156" y="324" font-family="'Avenir Next', 'Segoe UI', sans-serif" font-size="13" fill="#dce3ef">
     ${details}
   </text>
 
-  <!-- Polygon badge bottom-right -->
-  <text x="572" y="388" font-family="Arial, sans-serif" font-size="9" fill="#6366f1"
-        text-anchor="end" opacity="0.8">${esc(networkLabel)}</text>
-
-  <!-- Decorative corner accents -->
-  <path d="M20 20 L36 20 L36 22 L22 22 L22 36 L20 36 Z" fill="#f59e0b" opacity="0.5"/>
-  <path d="M580 20 L564 20 L564 22 L578 22 L578 36 L580 36 Z" fill="#f59e0b" opacity="0.5"/>
-  <path d="M20 380 L36 380 L36 378 L22 378 L22 364 L20 364 Z" fill="#f59e0b" opacity="0.5"/>
-  <path d="M580 380 L564 380 L564 378 L578 378 L578 364 L580 364 Z" fill="#f59e0b" opacity="0.5"/>
+  <line x1="40" y1="344" x2="560" y2="344" stroke="rgba(255,255,255,0.05)"/>
+  <text x="40" y="365" font-family="'Avenir Next', 'Segoe UI', sans-serif" font-size="9" fill="rgba(224,229,238,0.34)">
+    edi badge
+  </text>
 </svg>`
 }

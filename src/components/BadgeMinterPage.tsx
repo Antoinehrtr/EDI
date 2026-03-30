@@ -1,13 +1,27 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import BadgePreview from './BadgePreview'
-import type { BadgeFormData, MintState } from '@/lib/types'
+import type { BadgeFormData, MintState, Network } from '@/lib/types'
 
 type AvatarMode = 'url' | 'upload'
 
 const AVATAR_CANVAS_SIZE = 256
-const MAX_UPLOAD_BYTES = 4 * 1024 * 1024 // 4 MB raw file limit keeps processing quick
+const MAX_UPLOAD_BYTES = 4 * 1024 * 1024
+
+const NETWORK_META: Record<
+  Network,
+  {
+    switchLabel: string
+  }
+> = {
+  mainnet: {
+    switchLabel: 'Mainnet',
+  },
+  amoy: {
+    switchLabel: 'Testnet',
+  },
+}
 
 async function readFileAsDataURL(file: File): Promise<string> {
   return await new Promise((resolve, reject) => {
@@ -36,7 +50,7 @@ async function compressAvatar(file: File): Promise<{ dataUrl: string; bytes: num
   const ctx = canvas.getContext('2d')
   if (!ctx) throw new Error('Canvas not supported in this browser')
 
-  ctx.fillStyle = '#0f172a'
+  ctx.fillStyle = '#0b1021'
   ctx.fillRect(0, 0, AVATAR_CANVAS_SIZE, AVATAR_CANVAS_SIZE)
 
   const scale = Math.max(AVATAR_CANVAS_SIZE / image.width, AVATAR_CANVAS_SIZE / image.height)
@@ -65,6 +79,21 @@ const EMPTY: BadgeFormData = {
   network: 'mainnet',
 }
 
+function StatusIcon({ success }: { success: boolean }) {
+  return success ? (
+    <svg viewBox="0 0 20 20" fill="none" className="h-5 w-5 text-emerald-300" aria-hidden="true">
+      <circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="1.5" opacity="0.35" />
+      <path d="M6.5 10.3L8.7 12.4L13.6 7.6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ) : (
+    <svg viewBox="0 0 20 20" fill="none" className="h-5 w-5 text-rose-300" aria-hidden="true">
+      <circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="1.5" opacity="0.35" />
+      <path d="M10 6.5V10.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <circle cx="10" cy="13.4" r="1" fill="currentColor" />
+    </svg>
+  )
+}
+
 function Field({
   label,
   name,
@@ -85,9 +114,9 @@ function Field({
   hint?: string
 }) {
   return (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-xs font-semibold uppercase tracking-widest text-slate-400">
-        {label} {required && <span className="text-amber-400">*</span>}
+    <div className="flex flex-col gap-2">
+      <label className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/58">
+        {label} {required && <span className="text-[#f5c06d]">*</span>}
       </label>
       <input
         type={type}
@@ -95,33 +124,43 @@ function Field({
         onChange={(e) => onChange(name, e.target.value)}
         placeholder={placeholder}
         required={required}
-        className="rounded-lg bg-slate-800/60 border border-slate-700 px-3 py-2.5 text-sm
-          text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400/60
-          focus:ring-1 focus:ring-amber-400/20 transition-all duration-150
-          [color-scheme:dark]"
+        className="glass-input px-4 py-3 text-sm [color-scheme:dark]"
       />
-      {hint && <p className="text-xs text-slate-500">{hint}</p>}
+      {hint && <p className="text-xs leading-5 text-white/42">{hint}</p>}
     </div>
   )
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  description,
+  children,
+}: {
+  title: string
+  description?: string
+  children: React.ReactNode
+}) {
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-3">
-        <span className="text-xs font-bold uppercase tracking-widest text-amber-400/60">{title}</span>
-        <div className="flex-1 h-px bg-slate-700/60" />
+    <section className="flex flex-col gap-5">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-3">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.34em] text-[#f5c06d]/82">{title}</span>
+            <span className="h-px min-w-12 flex-1 bg-white/10" />
+          </div>
+          {description ? <p className="max-w-lg text-sm leading-6 text-white/48">{description}</p> : null}
+        </div>
       </div>
       {children}
-    </div>
+    </section>
   )
 }
 
 function Spinner() {
   return (
-    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v8z" />
     </svg>
   )
 }
@@ -132,9 +171,57 @@ export default function BadgeMinterPage() {
   const [avatarMode, setAvatarMode] = useState<AvatarMode>('url')
   const [avatarBytes, setAvatarBytes] = useState<number | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const backgroundRef = useRef<HTMLDivElement | null>(null)
+  const pointerFrameRef = useRef<number | null>(null)
+  const pointerStateRef = useRef({
+    x: 0,
+    y: 0,
+    glowX: 50,
+    glowY: 28,
+  })
+
+  useEffect(() => {
+    return () => {
+      if (pointerFrameRef.current !== null) {
+        cancelAnimationFrame(pointerFrameRef.current)
+      }
+    }
+  }, [])
+
+  function flushParallax() {
+    const node = backgroundRef.current
+    if (!node) return
+
+    const { x, y, glowX, glowY } = pointerStateRef.current
+    node.style.setProperty('--pointer-x', x.toFixed(3))
+    node.style.setProperty('--pointer-y', y.toFixed(3))
+    node.style.setProperty('--pointer-glow-x', `${glowX.toFixed(2)}%`)
+    node.style.setProperty('--pointer-glow-y', `${glowY.toFixed(2)}%`)
+    pointerFrameRef.current = null
+  }
+
+  function queueParallax(x: number, y: number, glowX: number, glowY: number) {
+    pointerStateRef.current = { x, y, glowX, glowY }
+
+    if (pointerFrameRef.current !== null) return
+
+    pointerFrameRef.current = requestAnimationFrame(flushParallax)
+  }
 
   function setField(name: keyof BadgeFormData, value: string) {
     setForm((prev) => ({ ...prev, [name]: value }))
+  }
+
+  function handlePointerMove(e: React.PointerEvent<HTMLElement>) {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const px = (e.clientX - rect.left) / rect.width
+    const py = (e.clientY - rect.top) / rect.height
+
+    queueParallax((px - 0.5) * 2, (py - 0.5) * 2, px * 100, py * 100)
+  }
+
+  function handlePointerLeave() {
+    queueParallax(0, 0, 50, 28)
   }
 
   function handleAvatarModeChange(mode: AvatarMode) {
@@ -147,17 +234,18 @@ export default function BadgeMinterPage() {
   async function handleAvatarUpload(fileList: FileList | null) {
     const file = fileList?.[0]
     if (!file) {
-      setUploadError('Select an image file to upload')
+      setUploadError('Select an image file to upload.')
       return
     }
     if (!file.type.startsWith('image/')) {
-      setUploadError('Only image files are supported')
+      setUploadError('Only image files are supported.')
       return
     }
     if (file.size > MAX_UPLOAD_BYTES) {
-      setUploadError('Image is larger than 4 MB - please pick a smaller file')
+      setUploadError('Image is larger than 4 MB. Please pick a smaller file.')
       return
     }
+
     try {
       const { dataUrl, bytes } = await compressAvatar(file)
       setField('imageUrl', dataUrl)
@@ -165,7 +253,7 @@ export default function BadgeMinterPage() {
       setUploadError(null)
     } catch (err) {
       console.error(err)
-      setUploadError('Unable to process the image. Try another file?')
+      setUploadError('Unable to process that image. Try another file.')
     }
   }
 
@@ -198,247 +286,231 @@ export default function BadgeMinterPage() {
   const isLoading = mintState.status === 'loading'
 
   return (
-    <main className="min-h-screen px-4 py-14">
-
-      {/* Network Toggle */}
-      <div className="max-w-5xl mx-auto mb-6 flex justify-center">
-        <div className="inline-flex items-center gap-3 rounded-full bg-slate-800/60 border border-slate-700 px-2 py-1.5">
-          <button
-            type="button"
-            onClick={() => setField('network', 'mainnet')}
-            className={`rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider transition-all duration-150 ${
-              form.network === 'mainnet'
-                ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/30'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Polygon Mainnet
-          </button>
-          <button
-            type="button"
-            onClick={() => setField('network', 'amoy')}
-            className={`rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider transition-all duration-150 ${
-              form.network === 'amoy'
-                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/30'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Amoy Testnet
-          </button>
+    <main className="relative isolate min-h-screen overflow-hidden" onPointerMove={handlePointerMove} onPointerLeave={handlePointerLeave}>
+      <div ref={backgroundRef} className="parallax-stage pointer-events-none absolute inset-0">
+        <div className="parallax-layer-deep absolute inset-0">
+          <div className="ambient-grid absolute inset-0" />
+        </div>
+        <div className="parallax-layer-mid absolute inset-0">
+          <div className="hero-vignette absolute inset-0" />
+          <div className="pointer-glow absolute inset-0" />
+        </div>
+        <div className="parallax-layer-soft absolute inset-0">
+          <div className="liquid-orb ambient-float absolute -left-24 top-10 h-[28rem] w-[28rem] bg-[radial-gradient(circle,rgba(112,102,255,0.34),transparent_70%)]" />
+          <div className="liquid-orb ambient-float absolute right-[-7rem] top-16 h-56 w-56 bg-[radial-gradient(circle,rgba(245,192,109,0.22),transparent_72%)] [animation-delay:-7s]" />
+          <div className="liquid-orb ambient-float absolute bottom-16 right-[10%] h-80 w-80 bg-[radial-gradient(circle,rgba(90,214,255,0.13),transparent_70%)] [animation-delay:-11s]" />
+          <div className="liquid-card ambient-drift absolute left-[7%] top-24 hidden h-32 w-52 rounded-[28px] lg:block" />
+          <div className="liquid-card ambient-drift absolute right-[12%] top-14 hidden h-28 w-28 rounded-full lg:block [animation-delay:-8s]" />
+          <div className="liquid-card ambient-drift absolute bottom-28 right-[-2rem] hidden h-24 w-44 rounded-[26px] lg:block [animation-delay:-12s]" />
         </div>
       </div>
 
-      {/* Header */}
-      <div className="max-w-5xl mx-auto mb-12 text-center">
-        <p className="text-xs font-bold uppercase tracking-[0.4em] text-amber-400 mb-3">
-          ELCA Digital Innovation
-        </p>
-        <h1 className="text-4xl sm:text-5xl font-bold text-white mb-4 tracking-tight">
-          EDI Badge Minter
-        </h1>
-        <p className="text-slate-400 text-sm max-w-sm mx-auto leading-relaxed">
-          Create and mint a thank‑you, farewell, or completion badge as an NFT on{' '}
-          {form.network === 'mainnet' ? 'Polygon Mainnet' : 'Polygon Amoy Testnet'}.
-          No wallet required.
-        </p>
-      </div>
+      <div className="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-6 sm:px-6 lg:px-8">
+        <div className="flex justify-center">
+          <div className="glass-pill inline-flex items-center gap-2 rounded-full p-1.5 shadow-[0_18px_40px_rgba(3,6,18,0.28)]">
+            {(Object.entries(NETWORK_META) as Array<[Network, (typeof NETWORK_META)[Network]]>).map(([value, meta]) => {
+              const active = form.network === value
 
-      {/* Two-column layout */}
-      <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
-
-        {/* ── Form ── */}
-        <form onSubmit={handleMint} className="flex flex-col gap-7">
-
-          <Section title="Recipient">
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="First Name" name="firstName" value={form.firstName} onChange={setField} required placeholder="Jane" />
-              <Field label="Last Name"  name="lastName"  value={form.lastName}  onChange={setField} required placeholder="Doe" />
-            </div>
-            <Field
-              label="Recipient Wallet"
-              name="recipientWallet"
-              value={form.recipientWallet}
-              onChange={setField}
-              required
-              placeholder="0x…"
-              hint="The NFT will be sent to this address."
-            />
-          </Section>
-
-          <Section title="Badge Content">
-            <Field
-              label="Main Project"
-              name="project"
-              value={form.project}
-              onChange={setField}
-              required
-              placeholder="Digital Transformation Initiative"
-            />
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Start Date"      name="startDate"      value={form.startDate}      onChange={setField} type="date" required />
-              <Field label="Completion Date" name="completionDate" value={form.completionDate} onChange={setField} type="date" required />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold uppercase tracking-widest text-slate-400">
-                Details
-              </label>
-              <textarea
-                value={form.details}
-                onChange={(e) => setField('details', e.target.value)}
-                placeholder="A short message about this person's contribution…"
-                rows={3}
-                className="rounded-lg bg-slate-800/60 border border-slate-700 px-3 py-2.5 text-sm
-                  text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400/60
-                  focus:ring-1 focus:ring-amber-400/20 transition-all duration-150 resize-none"
-              />
-            </div>
-              <div className="flex flex-col gap-2">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <span className="text-xs font-semibold uppercase tracking-widest text-slate-400">
-                    Avatar Source
-                  </span>
-                  <div className="inline-flex rounded-full bg-slate-900/40 border border-slate-800/80 p-1">
-                    {(['url', 'upload'] as AvatarMode[]).map((mode) => (
-                      <button
-                        key={mode}
-                        type="button"
-                        onClick={() => handleAvatarModeChange(mode)}
-                        className={`px-3 py-1 text-[11px] font-semibold uppercase tracking-wider rounded-full transition-all duration-150 ${
-                          avatarMode === mode
-                            ? 'bg-amber-400 text-slate-900 shadow-amber-500/30 shadow'
-                            : 'text-slate-400 hover:text-slate-200'
-                        }`}
-                      >
-                        {mode === 'url' ? 'Use URL' : 'Upload file'}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                {avatarMode === 'url' ? (
-                  <Field
-                    label="Avatar / Image URL"
-                    name="imageUrl"
-                    value={form.imageUrl}
-                    onChange={setField}
-                    placeholder="https://example.com/photo.jpg (optional)"
-                    hint="Use any publicly accessible image URL."
-                  />
-                ) : (
-                  <div className="flex flex-col gap-2 rounded-xl border border-slate-700/60 bg-slate-900/40 p-3">
-                    <label className="text-xs font-semibold uppercase tracking-widest text-slate-400">
-                      Upload (PNG/JPG)
-                    </label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleAvatarUpload(e.target.files)}
-                      className="text-sm text-slate-200 file:mr-4 file:rounded-md file:border-0 file:bg-amber-400/90 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-slate-900
-                        hover:file:bg-amber-300"
-                    />
-                    <p className="text-xs text-slate-500">
-                      Resized client-side to 256x256 PNG before minting{avatarBytes ? ` (~${Math.max(1, Math.round(avatarBytes / 1024))} KB)` : ''}.
-                    </p>
-                    {uploadError && <p className="text-xs text-red-400">{uploadError}</p>}
-                  </div>
-                )}
-                {form.imageUrl && (
-                  <button
-                    type="button"
-                    onClick={clearAvatar}
-                    className="self-start text-xs text-slate-400 hover:text-slate-200 transition-colors"
-                  >
-                    Remove current avatar
-                  </button>
-                )}
-              </div>
-          </Section>
-
-          {/* Feedback */}
-          {mintState.status === 'error' && (
-            <div className="rounded-xl bg-red-950/40 border border-red-700/50 px-4 py-3 text-sm text-red-300 flex gap-2 items-start">
-              <span className="mt-0.5">⚠</span>
-              <span>{mintState.message}</span>
-            </div>
-          )}
-
-          {mintState.status === 'success' && (
-            <div className="rounded-xl bg-emerald-950/40 border border-emerald-700/50 px-4 py-4 text-sm text-emerald-300 flex flex-col gap-3">
-              <div className="flex items-center gap-2 font-semibold text-emerald-200">
-                <span>✓</span> Badge minted successfully!
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-slate-500 uppercase tracking-wider">Token ID</span>
-                  <span className="font-mono text-emerald-300">#{mintState.result.tokenId}</span>
-                </div>
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-slate-500 uppercase tracking-wider">Network</span>
-                  <span className="text-emerald-300">{form.network === 'mainnet' ? 'Polygon Mainnet' : 'Polygon Amoy'}</span>
-                </div>
-              </div>
-              <div className="flex flex-col gap-2 pt-1 border-t border-emerald-900/50">
-                <a
-                  href={`https://${form.network === 'mainnet' ? '' : 'amoy.'}polygonscan.com/tx/${mintState.result.txHash}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-xs text-emerald-400 hover:text-emerald-200 transition-colors"
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setField('network', value)}
+                  className={`rounded-full px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.28em] transition duration-200 ${
+                    active
+                      ? 'border border-white/14 bg-white/12 text-white shadow-[0_14px_30px_rgba(8,10,24,0.35)]'
+                      : 'text-white/48 hover:text-white/78'
+                  }`}
                 >
-                  <span>↗</span> View on PolygonScan
-                </a>
-              </div>
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="flex items-center justify-center gap-2 rounded-xl bg-amber-400 hover:bg-amber-300
-              active:bg-amber-500 disabled:bg-slate-700 disabled:text-slate-500
-              text-slate-900 font-bold py-3.5 px-6 text-sm transition-all duration-150
-              shadow-lg shadow-amber-900/20"
-          >
-            {isLoading ? (
-              <>
-                <Spinner />
-                Minting…
-              </>
-            ) : (
-              'Mint Badge'
-            )}
-          </button>
-
-          <p className="text-xs text-slate-600 text-center -mt-3">
-            Minting takes ~15 seconds while the transaction confirms on-chain.
-          </p>
-        </form>
-
-        {/* ── Preview ── */}
-        <div className="lg:sticky lg:top-12 flex flex-col gap-6">
-          <BadgePreview data={form} />
-
-          {/* Chain info */}
-          <div className="rounded-xl border border-slate-700/50 bg-slate-800/30 px-4 py-3 flex flex-col gap-2 text-xs text-slate-500">
-            <div className="flex justify-between">
-              <span>Network</span>
-              <span className="text-slate-400">{form.network === 'mainnet' ? 'Polygon Mainnet' : 'Polygon Amoy Testnet'}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Standard</span>
-              <span className="text-slate-400">ERC-721</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Storage</span>
-              <span className="text-slate-400">IPFS via Pinata</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Cost</span>
-              <span className={form.network === 'mainnet' ? 'text-amber-400' : 'text-emerald-500'}>
-                {form.network === 'mainnet' ? 'Gas fees (POL)' : 'Free'}
-              </span>
-            </div>
+                  {meta.switchLabel}
+                </button>
+              )
+            })}
           </div>
         </div>
 
+        <section className="mx-auto mt-12 flex w-full max-w-5xl flex-col items-center text-center">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.55em] text-white/42">
+            ELCA DIGITAL INNOVATION
+          </p>
+          <h1 className="mt-6 max-w-4xl font-display text-5xl font-semibold tracking-[-0.04em] text-white sm:text-6xl lg:text-7xl">
+            EDI Badge Minter
+          </h1>
+          <p className="text-balance mt-5 max-w-lg text-base leading-7 text-white/52 sm:text-lg">Create refined recognition NFTs.</p>
+        </section>
+
+        <section className="mt-14 grid gap-8 xl:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)] xl:items-start">
+          <form onSubmit={handleMint} className="glass-panel rounded-[34px] p-5 sm:p-7 lg:p-8">
+            <div className="relative z-10 flex flex-col gap-8">
+              <div className="border-b border-white/10 pb-7">
+                <h2 className="font-display text-3xl font-semibold tracking-[-0.03em] text-white">Compose</h2>
+              </div>
+
+              <Section title="Recipient">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="First Name" name="firstName" value={form.firstName} onChange={setField} required placeholder="Jane" />
+                  <Field label="Last Name" name="lastName" value={form.lastName} onChange={setField} required placeholder="Doe" />
+                </div>
+                <Field
+                  label="Recipient Wallet"
+                  name="recipientWallet"
+                  value={form.recipientWallet}
+                  onChange={setField}
+                  required
+                  placeholder="0x..."
+                />
+              </Section>
+
+              <Section title="Badge Content">
+                <Field
+                  label="Main Project"
+                  name="project"
+                  value={form.project}
+                  onChange={setField}
+                  required
+                  placeholder="Digital Transformation Initiative"
+                />
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Start Date" name="startDate" value={form.startDate} onChange={setField} type="date" required />
+                  <Field label="Completion Date" name="completionDate" value={form.completionDate} onChange={setField} type="date" required />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/58">Details</label>
+                  <textarea
+                    value={form.details}
+                    onChange={(e) => setField('details', e.target.value)}
+                    placeholder="Summarize this person's contribution in a short, high-signal note."
+                    rows={4}
+                    className="glass-input min-h-[124px] resize-none px-4 py-3 text-sm"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-3 rounded-[26px] border border-white/10 bg-white/[0.035] p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/58">Avatar source</p>
+                    <div className="glass-pill inline-flex rounded-full p-1">
+                      {(['url', 'upload'] as AvatarMode[]).map((mode) => {
+                        const active = avatarMode === mode
+
+                        return (
+                          <button
+                            key={mode}
+                            type="button"
+                            onClick={() => handleAvatarModeChange(mode)}
+                            className={`rounded-full px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.24em] transition duration-200 ${
+                              active ? 'bg-white/12 text-white shadow-[0_10px_24px_rgba(8,10,24,0.3)]' : 'text-white/46 hover:text-white/75'
+                            }`}
+                          >
+                            {mode === 'url' ? 'URL' : 'Upload'}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {avatarMode === 'url' ? (
+                    <Field
+                      label="Avatar / Image URL"
+                      name="imageUrl"
+                      value={form.imageUrl}
+                      onChange={setField}
+                      placeholder="https://example.com/photo.jpg"
+                    />
+                  ) : (
+                    <div className="flex flex-col gap-3 rounded-[22px] border border-white/10 bg-[#090d1b]/44 p-4">
+                      <label className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/58">Upload image</label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleAvatarUpload(e.target.files)}
+                        className="block text-sm text-white/74 file:mr-4 file:rounded-full file:border-0 file:bg-[#f5c06d] file:px-4 file:py-2.5 file:text-xs file:font-semibold file:uppercase file:tracking-[0.22em] file:text-[#111528] hover:file:bg-[#f7ca82]"
+                      />
+                      <p className="text-xs leading-5 text-white/42">
+                        256x256 PNG{avatarBytes ? ` · ${Math.max(1, Math.round(avatarBytes / 1024))} KB` : ''}.
+                      </p>
+                      {uploadError && <p className="text-xs text-rose-300">{uploadError}</p>}
+                    </div>
+                  )}
+
+                  {form.imageUrl && (
+                    <button type="button" onClick={clearAvatar} className="w-fit text-xs font-medium text-white/54 transition hover:text-white/82">
+                      Remove current avatar
+                    </button>
+                  )}
+                </div>
+              </Section>
+
+              {mintState.status === 'error' && (
+                <div
+                  className="flex items-start gap-3 rounded-[24px] border border-rose-400/18 bg-rose-500/[0.07] px-4 py-4 text-sm text-rose-100"
+                  aria-live="polite"
+                >
+                  <StatusIcon success={false} />
+                  <div className="flex flex-col gap-1">
+                    <p className="font-semibold text-rose-100">Minting failed</p>
+                    <p className="leading-6 text-rose-100/80">{mintState.message}</p>
+                  </div>
+                </div>
+              )}
+
+              {mintState.status === 'success' && (
+                <div
+                  className="flex flex-col gap-4 rounded-[24px] border border-emerald-400/18 bg-emerald-500/[0.07] px-4 py-4 text-sm text-emerald-50"
+                  aria-live="polite"
+                >
+                  <div className="flex items-start gap-3">
+                    <StatusIcon success />
+                    <div className="flex flex-col gap-1">
+                      <p className="font-semibold text-emerald-100">Badge minted successfully</p>
+                      <p className="leading-6 text-emerald-100/72">The transaction is live.</p>
+                    </div>
+                  </div>
+                  <div className="rounded-[20px] border border-white/10 bg-white/[0.04] px-4 py-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-emerald-100/54">Token ID</p>
+                    <p className="mt-2 font-mono text-sm text-emerald-100">#{mintState.result.tokenId}</p>
+                  </div>
+                  <a
+                    href={`https://${form.network === 'mainnet' ? '' : 'amoy.'}polygonscan.com/tx/${mintState.result.txHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-fit text-xs font-semibold uppercase tracking-[0.24em] text-emerald-200 transition hover:text-white"
+                  >
+                    View transaction
+                  </a>
+                </div>
+              )}
+
+              <div className="border-t border-white/10 pt-6">
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="flex w-full items-center justify-center gap-2 rounded-[20px] border border-[#f5c06d]/30 bg-[linear-gradient(135deg,#f6c574,#f0b757)] px-6 py-4 text-sm font-semibold uppercase tracking-[0.22em] text-[#111528] shadow-[0_24px_40px_rgba(245,192,109,0.24)] transition duration-200 hover:-translate-y-0.5 hover:brightness-[1.03] disabled:translate-y-0 disabled:border-white/10 disabled:bg-white/8 disabled:text-white/36 disabled:shadow-none"
+                >
+                  {isLoading ? (
+                    <>
+                      <Spinner />
+                      Minting
+                    </>
+                  ) : (
+                    'Mint Badge'
+                  )}
+                </button>
+                <p className="mt-3 text-center text-xs leading-5 text-white/42">
+                  Usually confirms in about 15 seconds.
+                </p>
+              </div>
+            </div>
+          </form>
+
+          <aside className="flex flex-col gap-5 xl:sticky xl:top-8">
+            <div className="glass-panel glass-panel-warm rounded-[34px] p-5 sm:p-6">
+              <div className="relative z-10 flex flex-col gap-5">
+                <h2 className="font-display text-2xl font-semibold tracking-[-0.03em] text-white">Preview</h2>
+                <BadgePreview data={form} />
+              </div>
+            </div>
+          </aside>
+        </section>
       </div>
     </main>
   )
