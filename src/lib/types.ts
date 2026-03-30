@@ -1,3 +1,5 @@
+export type Network = 'mainnet' | 'amoy'
+
 export interface BadgeFormData {
   firstName: string
   lastName: string
@@ -7,6 +9,7 @@ export interface BadgeFormData {
   details: string
   imageUrl: string        // optional URL for avatar/logo inside the badge
   recipientWallet: string // 0x... address
+  network: Network
 }
 
 export interface MintResult {

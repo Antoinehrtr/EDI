@@ -18,6 +18,11 @@ const config: HardhatUserConfig = {
       accounts: process.env.MINTER_PRIVATE_KEY ? [process.env.MINTER_PRIVATE_KEY] : [],
       chainId: 80002,
     },
+    polygon: {
+      url: process.env.POLYGON_MAINNET_RPC_URL ?? 'https://polygon-bor-rpc.publicnode.com',
+      accounts: process.env.MINTER_PRIVATE_KEY ? [process.env.MINTER_PRIVATE_KEY] : [],
+      chainId: 137,
+    },
   },
   etherscan: {
     apiKey: process.env.POLYGONSCAN_API_KEY ?? '',

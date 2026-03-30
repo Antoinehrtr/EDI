@@ -1,4 +1,5 @@
 import { ethers } from 'ethers'
+import type { Network } from './types'
 
 // Minimal ABI — only what the app needs
 const ABI = [
@@ -6,13 +7,25 @@ const ABI = [
   'event BadgeMinted(address indexed recipient, uint256 indexed tokenId)',
 ]
 
-export function getMintContract() {
-  const rpcUrl = process.env.POLYGON_AMOY_RPC_URL
+const NETWORK_CONFIG = {
+  mainnet: {
+    rpcEnv: 'POLYGON_MAINNET_RPC_URL',
+    contractEnv: 'CONTRACT_ADDRESS_MAINNET',
+  },
+  amoy: {
+    rpcEnv: 'POLYGON_AMOY_RPC_URL',
+    contractEnv: 'CONTRACT_ADDRESS',
+  },
+} as const
+
+export function getMintContract(network: Network = 'amoy') {
+  const cfg = NETWORK_CONFIG[network]
+  const rpcUrl = process.env[cfg.rpcEnv]
   const privateKey = process.env.MINTER_PRIVATE_KEY
-  const contractAddress = process.env.CONTRACT_ADDRESS
+  const contractAddress = process.env[cfg.contractEnv]
 
   if (!rpcUrl || !privateKey || !contractAddress) {
-    throw new Error('Missing required env vars: POLYGON_AMOY_RPC_URL, MINTER_PRIVATE_KEY, CONTRACT_ADDRESS')
+    throw new Error(`Missing env vars for ${network}: ${cfg.rpcEnv}, MINTER_PRIVATE_KEY, ${cfg.contractEnv}`)
   }
 
   const provider = new ethers.JsonRpcProvider(rpcUrl)

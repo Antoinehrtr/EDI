@@ -25,6 +25,7 @@ export function generateBadgeSvg(data: BadgeFormData): string {
   const start = esc(formatDate(data.startDate))
   const end = esc(formatDate(data.completionDate))
   const hasImage = Boolean(data.imageUrl)
+  const networkLabel = data.network === 'mainnet' ? 'Polygon Mainnet' : 'Polygon Amoy Testnet'
 
   return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
     width="600" height="400" viewBox="0 0 600 400">
@@ -104,7 +105,7 @@ export function generateBadgeSvg(data: BadgeFormData): string {
 
   <!-- Polygon badge bottom-right -->
   <text x="572" y="388" font-family="Arial, sans-serif" font-size="9" fill="#6366f1"
-        text-anchor="end" opacity="0.8">Polygon Amoy Testnet</text>
+        text-anchor="end" opacity="0.8">${esc(networkLabel)}</text>
 
   <!-- Decorative corner accents -->
   <path d="M20 20 L36 20 L36 22 L22 22 L22 36 L20 36 Z" fill="#f59e0b" opacity="0.5"/>

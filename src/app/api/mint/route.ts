@@ -69,12 +69,17 @@ export async function POST(req: NextRequest) {
     const metadataUri = `ipfs://${metaCid}`
 
     // 5. Decode CID → bytes32 for the optimised contract, then mint
+    const network = data.network ?? 'amoy'
     const ipfsHash = cidToBytes32(metaCid)
-    const contract = getMintContract()
-    const tx = await contract.mint(data.recipientWallet, ipfsHash, {
-      maxFeePerGas: ethers.parseUnits('35', 'gwei'),
-      maxPriorityFeePerGas: ethers.parseUnits('25', 'gwei'),
-    })
+    const contract = getMintContract(network)
+
+    // Amoy uses fixed low fees; mainnet uses dynamic fees from the network
+    let gasOpts = {}
+    if (network === 'amoy') {
+      gasOpts = { maxFeePerGas: ethers.parseUnits('35', 'gwei'), maxPriorityFeePerGas: ethers.parseUnits('25', 'gwei') }
+    }
+
+    const tx = await contract.mint(data.recipientWallet, ipfsHash, gasOpts)
     const receipt = await tx.wait(1)
 
     // 6. Parse token ID from BadgeMinted event

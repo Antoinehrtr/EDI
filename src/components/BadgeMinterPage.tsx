@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import BadgePreview from './BadgePreview'
-import type { BadgeFormData, MintState } from '@/lib/types'
+import type { BadgeFormData, MintState, Network } from '@/lib/types'
 
 const EMPTY: BadgeFormData = {
   firstName: '',
@@ -13,6 +13,7 @@ const EMPTY: BadgeFormData = {
   details: '',
   imageUrl: '',
   recipientWallet: '',
+  network: 'mainnet',
 }
 
 function Field({
@@ -109,6 +110,34 @@ export default function BadgeMinterPage() {
   return (
     <main className="min-h-screen px-4 py-14">
 
+      {/* Network Toggle */}
+      <div className="max-w-5xl mx-auto mb-6 flex justify-center">
+        <div className="inline-flex items-center gap-3 rounded-full bg-slate-800/60 border border-slate-700 px-2 py-1.5">
+          <button
+            type="button"
+            onClick={() => setField('network', 'mainnet')}
+            className={`rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider transition-all duration-150 ${
+              form.network === 'mainnet'
+                ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/30'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            Polygon Mainnet
+          </button>
+          <button
+            type="button"
+            onClick={() => setField('network', 'amoy')}
+            className={`rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider transition-all duration-150 ${
+              form.network === 'amoy'
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/30'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            Amoy Testnet
+          </button>
+        </div>
+      </div>
+
       {/* Header */}
       <div className="max-w-5xl mx-auto mb-12 text-center">
         <p className="text-xs font-bold uppercase tracking-[0.4em] text-amber-400 mb-3">
@@ -118,7 +147,8 @@ export default function BadgeMinterPage() {
           EDI Badge Minter
         </h1>
         <p className="text-slate-400 text-sm max-w-sm mx-auto leading-relaxed">
-          Create and mint a thank‑you, farewell, or completion badge as an NFT on Polygon Amoy Testnet.
+          Create and mint a thank‑you, farewell, or completion badge as an NFT on{' '}
+          {form.network === 'mainnet' ? 'Polygon Mainnet' : 'Polygon Amoy Testnet'}.
           No wallet required.
         </p>
       </div>
@@ -202,12 +232,12 @@ export default function BadgeMinterPage() {
                 </div>
                 <div className="flex flex-col gap-0.5">
                   <span className="text-slate-500 uppercase tracking-wider">Network</span>
-                  <span className="text-emerald-300">Polygon Amoy</span>
+                  <span className="text-emerald-300">{form.network === 'mainnet' ? 'Polygon Mainnet' : 'Polygon Amoy'}</span>
                 </div>
               </div>
               <div className="flex flex-col gap-2 pt-1 border-t border-emerald-900/50">
                 <a
-                  href={`https://amoy.polygonscan.com/tx/${mintState.result.txHash}`}
+                  href={`https://${form.network === 'mainnet' ? '' : 'amoy.'}polygonscan.com/tx/${mintState.result.txHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 text-xs text-emerald-400 hover:text-emerald-200 transition-colors"
@@ -249,7 +279,7 @@ export default function BadgeMinterPage() {
           <div className="rounded-xl border border-slate-700/50 bg-slate-800/30 px-4 py-3 flex flex-col gap-2 text-xs text-slate-500">
             <div className="flex justify-between">
               <span>Network</span>
-              <span className="text-slate-400">Polygon Amoy Testnet</span>
+              <span className="text-slate-400">{form.network === 'mainnet' ? 'Polygon Mainnet' : 'Polygon Amoy Testnet'}</span>
             </div>
             <div className="flex justify-between">
               <span>Standard</span>
@@ -261,7 +291,9 @@ export default function BadgeMinterPage() {
             </div>
             <div className="flex justify-between">
               <span>Cost</span>
-              <span className="text-emerald-500">Free</span>
+              <span className={form.network === 'mainnet' ? 'text-amber-400' : 'text-emerald-500'}>
+                {form.network === 'mainnet' ? 'Gas fees (POL)' : 'Free'}
+              </span>
             </div>
           </div>
         </div>
