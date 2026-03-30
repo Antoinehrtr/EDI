@@ -55,7 +55,7 @@ export function generateBadgeSvg(data: BadgeFormData): string {
   <text x="40" y="47" font-family="'Avenir Next', 'Segoe UI', sans-serif" font-size="10" font-weight="600"
         letter-spacing="4" fill="rgba(224,229,238,0.48)">ELCA DIGITAL INNOVATION</text>
   <text x="560" y="47" font-family="'Avenir Next Condensed', 'Arial Narrow', sans-serif" font-size="20" font-weight="700"
-        text-anchor="end" fill="url(#accent)">Badge</text>
+        text-anchor="end" fill="url(#accent)">Recognition</text>
 
   <circle cx="86" cy="204" r="56" fill="rgba(255,255,255,0.025)"/>
   <circle cx="86" cy="204" r="50" fill="rgba(8,11,19,0.68)" stroke="rgba(255,255,255,0.09)"/>
@@ -88,8 +88,5 @@ export function generateBadgeSvg(data: BadgeFormData): string {
   </text>
 
   <line x1="40" y1="344" x2="560" y2="344" stroke="rgba(255,255,255,0.05)"/>
-  <text x="40" y="365" font-family="'Avenir Next', 'Segoe UI', sans-serif" font-size="9" fill="rgba(224,229,238,0.34)">
-    edi badge
-  </text>
 </svg>`
 }
