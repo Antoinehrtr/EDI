@@ -20,3 +20,4 @@ contracts/typechain-types/
 *.log
 .codex
 .claude
+*.pdf
