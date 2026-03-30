@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { ethers } from 'ethers'
-import sharp from 'sharp'
 import { generateBadgeSvg } from '@/lib/generateSvg'
-import { uploadPng, uploadJson } from '@/lib/pinata'
+import { uploadJson, uploadSvg } from '@/lib/pinata'
 import { getMintContract, CONTRACT_ABI } from '@/lib/contract'
 import type { BadgeFormData, MintResult } from '@/lib/types'
 
@@ -42,16 +41,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'First and last name are required' }, { status: 400 })
     }
 
-    // 1. Generate badge SVG → convert to PNG (better NFT platform support than SVG)
+    // 1. Generate the badge SVG and upload that exact asset to IPFS.
+    // This avoids server-side font rendering differences between local and Vercel.
     const svg = generateBadgeSvg(data)
     const slug = `${data.lastName}-${data.firstName}`.toLowerCase().replace(/\s+/g, '-')
-    const png = await sharp(Buffer.from(svg)).png().toBuffer()
 
-    // 2. Upload PNG image to IPFS
-    const imageCid = await uploadPng(png, `${slug}-badge.png`)
+    // 2. Upload SVG image to IPFS
+    const imageCid = await uploadSvg(svg, `${slug}-badge.svg`)
     const imageUri = `ipfs://${imageCid}`
 
     // 3. Build ERC-721 metadata
+    const avatarAttribute = data.imageUrl
+      ? data.imageUrl.startsWith('http')
+        ? [{ trait_type: 'Avatar URL', value: data.imageUrl }]
+        : [{ trait_type: 'Avatar Source', value: 'Uploaded' }]
+      : []
+
     const metadata = {
       name: `EDI Badge — ${data.firstName} ${data.lastName}`,
       description: data.details || `Completion badge for ${data.project}`,
@@ -60,7 +65,7 @@ export async function POST(req: NextRequest) {
         { trait_type: 'Project', value: data.project },
         { trait_type: 'Start Date', value: data.startDate },
         { trait_type: 'Completion Date', value: data.completionDate },
-        ...(data.imageUrl ? [{ trait_type: 'Avatar URL', value: data.imageUrl }] : []),
+        ...avatarAttribute,
       ],
     }
 

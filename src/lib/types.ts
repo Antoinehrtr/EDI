@@ -7,7 +7,7 @@ export interface BadgeFormData {
   startDate: string       // "YYYY-MM-DD"
   completionDate: string  // "YYYY-MM-DD"
   details: string
-  imageUrl: string        // optional URL for avatar/logo inside the badge
+  imageUrl: string        // optional URL or data URI for avatar/logo inside the badge
   recipientWallet: string // 0x... address
   network: Network
 }

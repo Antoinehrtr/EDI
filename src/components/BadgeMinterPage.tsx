@@ -2,7 +2,56 @@
 
 import { useState } from 'react'
 import BadgePreview from './BadgePreview'
-import type { BadgeFormData, MintState, Network } from '@/lib/types'
+import type { BadgeFormData, MintState } from '@/lib/types'
+
+type AvatarMode = 'url' | 'upload'
+
+const AVATAR_CANVAS_SIZE = 256
+const MAX_UPLOAD_BYTES = 4 * 1024 * 1024 // 4 MB raw file limit keeps processing quick
+
+async function readFileAsDataURL(file: File): Promise<string> {
+  return await new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(reader.error)
+    reader.onload = () => resolve(reader.result as string)
+    reader.readAsDataURL(file)
+  })
+}
+
+async function loadImageElement(src: string): Promise<HTMLImageElement> {
+  return await new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = reject
+    img.src = src
+  })
+}
+
+async function compressAvatar(file: File): Promise<{ dataUrl: string; bytes: number }> {
+  const dataUrl = await readFileAsDataURL(file)
+  const image = await loadImageElement(dataUrl)
+  const canvas = document.createElement('canvas')
+  canvas.width = AVATAR_CANVAS_SIZE
+  canvas.height = AVATAR_CANVAS_SIZE
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('Canvas not supported in this browser')
+
+  ctx.fillStyle = '#0f172a'
+  ctx.fillRect(0, 0, AVATAR_CANVAS_SIZE, AVATAR_CANVAS_SIZE)
+
+  const scale = Math.max(AVATAR_CANVAS_SIZE / image.width, AVATAR_CANVAS_SIZE / image.height)
+  const drawWidth = image.width * scale
+  const drawHeight = image.height * scale
+  const dx = (AVATAR_CANVAS_SIZE - drawWidth) / 2
+  const dy = (AVATAR_CANVAS_SIZE - drawHeight) / 2
+
+  ctx.drawImage(image, dx, dy, drawWidth, drawHeight)
+  const compactDataUrl = canvas.toDataURL('image/png', 0.9)
+  const base64 = compactDataUrl.split(',')[1] ?? ''
+  const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0
+  const bytes = Math.round((base64.length * 3) / 4 - padding)
+  return { dataUrl: compactDataUrl, bytes }
+}
 
 const EMPTY: BadgeFormData = {
   firstName: '',
@@ -80,9 +129,50 @@ function Spinner() {
 export default function BadgeMinterPage() {
   const [form, setForm] = useState<BadgeFormData>(EMPTY)
   const [mintState, setMintState] = useState<MintState>({ status: 'idle' })
+  const [avatarMode, setAvatarMode] = useState<AvatarMode>('url')
+  const [avatarBytes, setAvatarBytes] = useState<number | null>(null)
+  const [uploadError, setUploadError] = useState<string | null>(null)
 
   function setField(name: keyof BadgeFormData, value: string) {
     setForm((prev) => ({ ...prev, [name]: value }))
+  }
+
+  function handleAvatarModeChange(mode: AvatarMode) {
+    setAvatarMode(mode)
+    if (mode === 'url') {
+      setAvatarBytes(null)
+    }
+  }
+
+  async function handleAvatarUpload(fileList: FileList | null) {
+    const file = fileList?.[0]
+    if (!file) {
+      setUploadError('Select an image file to upload')
+      return
+    }
+    if (!file.type.startsWith('image/')) {
+      setUploadError('Only image files are supported')
+      return
+    }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setUploadError('Image is larger than 4 MB - please pick a smaller file')
+      return
+    }
+    try {
+      const { dataUrl, bytes } = await compressAvatar(file)
+      setField('imageUrl', dataUrl)
+      setAvatarBytes(bytes)
+      setUploadError(null)
+    } catch (err) {
+      console.error(err)
+      setUploadError('Unable to process the image. Try another file?')
+    }
+  }
+
+  function clearAvatar() {
+    setField('imageUrl', '')
+    setAvatarBytes(null)
+    setUploadError(null)
   }
 
   async function handleMint(e: React.FormEvent) {
@@ -202,14 +292,65 @@ export default function BadgeMinterPage() {
                   focus:ring-1 focus:ring-amber-400/20 transition-all duration-150 resize-none"
               />
             </div>
-            <Field
-              label="Avatar / Image URL"
-              name="imageUrl"
-              value={form.imageUrl}
-              onChange={setField}
-              placeholder="https://example.com/photo.jpg (optional)"
-              hint="A public image URL to display inside the badge."
-            />
+              <div className="flex flex-col gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <span className="text-xs font-semibold uppercase tracking-widest text-slate-400">
+                    Avatar Source
+                  </span>
+                  <div className="inline-flex rounded-full bg-slate-900/40 border border-slate-800/80 p-1">
+                    {(['url', 'upload'] as AvatarMode[]).map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => handleAvatarModeChange(mode)}
+                        className={`px-3 py-1 text-[11px] font-semibold uppercase tracking-wider rounded-full transition-all duration-150 ${
+                          avatarMode === mode
+                            ? 'bg-amber-400 text-slate-900 shadow-amber-500/30 shadow'
+                            : 'text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        {mode === 'url' ? 'Use URL' : 'Upload file'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {avatarMode === 'url' ? (
+                  <Field
+                    label="Avatar / Image URL"
+                    name="imageUrl"
+                    value={form.imageUrl}
+                    onChange={setField}
+                    placeholder="https://example.com/photo.jpg (optional)"
+                    hint="Use any publicly accessible image URL."
+                  />
+                ) : (
+                  <div className="flex flex-col gap-2 rounded-xl border border-slate-700/60 bg-slate-900/40 p-3">
+                    <label className="text-xs font-semibold uppercase tracking-widest text-slate-400">
+                      Upload (PNG/JPG)
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleAvatarUpload(e.target.files)}
+                      className="text-sm text-slate-200 file:mr-4 file:rounded-md file:border-0 file:bg-amber-400/90 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-slate-900
+                        hover:file:bg-amber-300"
+                    />
+                    <p className="text-xs text-slate-500">
+                      Resized client-side to 256x256 PNG before minting{avatarBytes ? ` (~${Math.max(1, Math.round(avatarBytes / 1024))} KB)` : ''}.
+                    </p>
+                    {uploadError && <p className="text-xs text-red-400">{uploadError}</p>}
+                  </div>
+                )}
+                {form.imageUrl && (
+                  <button
+                    type="button"
+                    onClick={clearAvatar}
+                    className="self-start text-xs text-slate-400 hover:text-slate-200 transition-colors"
+                  >
+                    Remove current avatar
+                  </button>
+                )}
+              </div>
           </Section>
 
           {/* Feedback */}
